@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0d1a24" />
+  <meta name="description" content="Interaktivní 3D anatomické roviny koně pro výuku veterinární anatomie." />
+  <title>Anatomické roviny koně | 3D výukový atlas</title>
+  <link rel="stylesheet" href="./styles.css" />
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.176.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.176.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Ovládání anatomických rovin">
+      <header class="brand">
+        <div class="brand-icon" aria-hidden="true">✦</div>
+        <div class="brand-copy"><span class="brand-topline">VETERINÁRNÍ ANATOMIE</span><strong>3D výukový atlas</strong></div>
+        <span class="brand-pill">BETA</span>
+      </header>
+
+      <div class="sidebar-scroll">
+        <div class="hero-copy">
+          <span class="eyebrow"><span class="status-dot"></span> INTERAKTIVNÍ MODEL</span>
+          <h1>Anatomické<br /><em>roviny koně</em></h1>
+          <p>Prozkoumej prostorové uspořádání anatomických rovin přímo na 3D modelu koně.</p>
+        </div>
+
+        <section class="control-section" aria-labelledby="planes-heading">
+          <div class="section-title-row"><h2 id="planes-heading">Anatomické roviny</h2><span class="counter" id="planeCount">2 / 4</span></div>
+          <p class="section-subtitle">Zapínej roviny jednotlivě nebo současně.</p>
+          <div class="plane-list" role="group" aria-label="Přepínače rovin">
+            <button class="plane-toggle active" type="button" data-plane="median" aria-pressed="true">
+              <span class="plane-swatch" style="--swatch:#ef8fba"><span class="swatch-mark"></span></span>
+              <span class="plane-text"><strong>Mediánní</strong><small>Střední (midsagitální)</small></span>
+              <span class="switch" aria-hidden="true"><span></span></span>
+            </button>
+            <button class="plane-toggle" type="button" data-plane="sagittal" aria-pressed="false">
+              <span class="plane-swatch" style="--swatch:#f0b967"><span class="swatch-mark"></span></span>
+              <span class="plane-text"><strong>Sagitální</strong><small>Rovnoběžná s mediánní</small></span>
+              <span class="switch" aria-hidden="true"><span></span></span>
+            </button>
+            <button class="plane-toggle" type="button" data-plane="dorsal" aria-pressed="false">
+              <span class="plane-swatch" style="--swatch:#55d4cb"><span class="swatch-mark"></span></span>
+              <span class="plane-text"><strong>Dorzální</strong><small>Hřbetní (frontální)</small></span>
+              <span class="switch" aria-hidden="true"><span></span></span>
+            </button>
+            <button class="plane-toggle active" type="button" data-plane="transverse" aria-pressed="true">
+              <span class="plane-swatch" style="--swatch:#ac99f2"><span class="swatch-mark"></span></span>
+              <span class="plane-text"><strong>Transverzální</strong><small>Příčná</small></span>
+              <span class="switch" aria-hidden="true"><span></span></span>
+            </button>
+          </div>
+          <div class="two-buttons"><button id="showAll" class="small-btn" type="button">＋ Zobrazit vše</button><button id="hideAll" class="small-btn" type="button">− Skrýt vše</button></div>
+        </section>
+
+        <section class="control-section opacity-section" aria-labelledby="display-heading">
+          <div class="section-title-row"><h2 id="display-heading">Zobrazení</h2></div>
+          <label class="slider-heading" for="opacityRange"><span>Průhlednost rovin</span><output id="opacityValue" for="opacityRange">70 %</output></label>
+          <input type="range" id="opacityRange" min="15" max="90" value="70" step="5" />
+          <label class="check-row"><input id="showLabels" type="checkbox" checked /><span>Popisky rovin v 3D prostoru</span></label>
+          <label class="check-row"><input id="autoRotate" type="checkbox" /><span>Automatické otáčení koně</span></label>
+        </section>
+
+        <section class="info-section" aria-live="polite">
+          <div class="info-topline"><span class="info-dot" id="infoDot"></span><span>ANATOMICKÁ VYSVĚTLIVKA</span></div>
+          <h3 id="infoTitle">Mediánní rovina</h3>
+          <p id="infoDescription">Prochází podélně středem těla a rozděluje koně na stejně velkou pravou a levou polovinu.</p>
+          <div class="direction-pills" id="infoPills"><span>Pravá</span><span>Levá</span></div>
+        </section>
+
+        <div class="sidebar-footer">Výuková 3D vizualizace · Schématický model, nikoli veterinární anatomický preparát.</div>
+      </div>
+    </aside>
+
+    <main class="main-stage" aria-label="3D scéna koně">
+      <div class="stage-topbar"><div class="breadcrumbs">ATLAS <span>/</span> KŮŇ <span>/</span> ANATOMICKÉ ROVINY</div><span class="online-indicator"><span></span> 3D SCÉNA</span></div>
+      <div class="viewport" id="viewport" aria-label="Otočný 3D model koně. Levým tlačítkem myši otáčejte, kolečkem přibližujte.">
+        <div id="canvasRoot" class="canvas-root"></div>
+        <div class="viewport-overlay" aria-hidden="true"></div>
+        <div id="loading" class="loading-panel" role="status"><span class="spinner"></span><strong>Načítám 3D model koně…</strong><small>Inicializace interaktivní scény</small></div>
+        <div id="errorPanel" class="error-panel" role="alert" hidden><strong>3D scénu se nepodařilo načíst.</strong><p>Obnovte stránku a zkontrolujte připojení k internetu. Pro vykreslování je potřeba WebGL a knihovna Three.js.</p></div>
+        <div class="viewport-tip"><span class="tip-icon">↻</span> Tažením myši otáčej · Kolečkem přibližuj</div>
+        <div class="view-nav" aria-label="Přednastavené pohledy"><span class="nav-caption">POHLED</span>
+          <button class="view-btn selected" data-view="iso" aria-pressed="true" type="button">3D</button>
+          <button class="view-btn" data-view="side" aria-pressed="false" type="button">Bok</button>
+          <button class="view-btn" data-view="front" aria-pressed="false" type="button">Zepředu</button>
+          <button class="view-btn" data-view="top" aria-pressed="false" type="button">Shora</button>
+        </div>
+        <button class="reset-btn" id="resetCamera" type="button" title="Obnovit původní kameru" aria-label="Obnovit původní kameru">↺</button>
+        <div class="orientation-key" aria-label="Orientace těla"><span>KRANIÁLNĚ</span><span class="arrow-key">⟵ &nbsp; OSA TĚLA &nbsp; ⟶</span><span>KAUDÁLNĚ</span></div>
+      </div>
+      <div class="stage-bottom">
+        <div class="bottom-icon">◎</div><div><strong>Tip pro výuku</strong><span>Kombinuj více rovin a poté přepni na pohled zepředu nebo shora, aby se ukázaly jejich vzájemné vztahy.</span></div>
+        <div class="shortcuts">1–4 <span>roviny</span> &nbsp; R <span>reset</span></div>
+      </div>
+    </main>
+  </div>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
