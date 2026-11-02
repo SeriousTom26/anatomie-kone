@@ -23,14 +23,14 @@
       <header class="brand">
         <div class="brand-icon" aria-hidden="true">✦</div>
         <div class="brand-copy"><span class="brand-topline">VETERINÁRNÍ ANATOMIE</span><strong>3D výukový atlas</strong></div>
-        <span class="brand-pill">BETA</span>
+        <span class="brand-pill">VERZE 2.0</span>
       </header>
 
       <div class="sidebar-scroll">
         <div class="hero-copy">
           <span class="eyebrow"><span class="status-dot"></span> INTERAKTIVNÍ MODEL</span>
           <h1>Anatomické<br /><em>roviny koně</em></h1>
-          <p>Prozkoumej prostorové uspořádání anatomických rovin přímo na 3D modelu koně.</p>
+          <p>Prozkoumej anatomické roviny, směry i jednotlivé části koně v interaktivním 3D prostoru.</p>
         </div>
 
         <section class="control-section" aria-labelledby="planes-heading">
@@ -61,6 +61,31 @@
           <div class="two-buttons"><button id="showAll" class="small-btn" type="button">＋ Zobrazit vše</button><button id="hideAll" class="small-btn" type="button">− Skrýt vše</button></div>
         </section>
 
+        <section class="control-section" aria-labelledby="focus-heading">
+          <div class="section-title-row"><h2 id="focus-heading">Zaměření modelu</h2><span class="counter">NOVÉ</span></div>
+          <p class="section-subtitle">Plynulé přiblížení na vybranou anatomickou oblast. Modelem lze dál otáčet.</p>
+          <div class="focus-list" role="group" aria-label="Vybraná oblast koně">
+            <button class="focus-btn selected" type="button" data-focus="all" aria-pressed="true"><span class="focus-icon">◎</span> Celý kůň</button>
+            <button class="focus-btn" type="button" data-focus="head" aria-pressed="false"><span class="focus-icon">◉</span> Hlava</button>
+            <button class="focus-btn" type="button" data-focus="foreleg" aria-pressed="false"><span class="focus-icon">⌁</span> Přední končetina</button>
+            <button class="focus-btn" type="button" data-focus="hindleg" aria-pressed="false"><span class="focus-icon">⌁</span> Zadní končetina</button>
+          </div>
+          <p class="focus-note" id="focusNote" aria-live="polite">Vyber oblast a kamera ji plynule přiblíží.</p>
+        </section>
+
+        <section class="control-section" aria-labelledby="directions-heading">
+          <div class="section-title-row"><h2 id="directions-heading">Anatomické směry</h2><span class="counter">NOVÉ</span></div>
+          <p class="section-subtitle">Kliknutím označ směr a zobraz jeho význam na modelu.</p>
+          <div class="direction-list" role="group" aria-label="Anatomické směry">
+            <button class="direction-btn" type="button" data-direction="cranial" aria-pressed="false"><span class="direction-glyph">←</span><span>Kraniální<small>K hlavě</small></span></button>
+            <button class="direction-btn" type="button" data-direction="caudal" aria-pressed="false"><span class="direction-glyph">→</span><span>Kaudální<small>K ocasu</small></span></button>
+            <button class="direction-btn" type="button" data-direction="dorsal" aria-pressed="false"><span class="direction-glyph">↑</span><span>Dorzální<small>Ke hřbetu</small></span></button>
+            <button class="direction-btn" type="button" data-direction="ventral" aria-pressed="false"><span class="direction-glyph">↓</span><span>Ventrální<small>K břichu</small></span></button>
+          </div>
+          <label class="check-row"><input id="showDirections" type="checkbox" /><span>Zobrazit všechny čtyři směry v 3D</span></label>
+          <p class="direction-explanation" id="directionExplanation" aria-live="polite">Na trupu se směry vztahují k hlavě, ocasu, hřbetu a břichu. Na hlavě a distálních částech končetin se používají také další odborné termíny.</p>
+        </section>
+
         <section class="control-section opacity-section" aria-labelledby="display-heading">
           <div class="section-title-row"><h2 id="display-heading">Zobrazení</h2></div>
           <label class="slider-heading" for="opacityRange"><span>Průhlednost rovin</span><output id="opacityValue" for="opacityRange">70 %</output></label>
@@ -76,18 +101,19 @@
           <div class="direction-pills" id="infoPills"><span>Pravá</span><span>Levá</span></div>
         </section>
 
-        <div class="sidebar-footer">Výuková 3D vizualizace · Schématický model, nikoli veterinární anatomický preparát.</div>
+        <div class="sidebar-footer">Výuková 3D vizualizace · Detailnější schématický model koně, nikoli anatomický preparát. Odborné názvy odpovídají veterinární topografii.</div>
       </div>
     </aside>
 
     <main class="main-stage" aria-label="3D scéna koně">
-      <div class="stage-topbar"><div class="breadcrumbs">ATLAS <span>/</span> KŮŇ <span>/</span> ANATOMICKÉ ROVINY</div><span class="online-indicator"><span></span> 3D SCÉNA</span></div>
+      <div class="stage-topbar"><div class="breadcrumbs">ATLAS <span>/</span> KŮŇ <span>/</span> 3D ANATOMIE</div><span class="online-indicator"><span></span> 3D SCÉNA</span></div>
       <div class="viewport" id="viewport" aria-label="Otočný 3D model koně. Levým tlačítkem myši otáčejte, kolečkem přibližujte.">
         <div id="canvasRoot" class="canvas-root"></div>
         <div class="viewport-overlay" aria-hidden="true"></div>
         <div id="loading" class="loading-panel" role="status"><span class="spinner"></span><strong>Načítám 3D model koně…</strong><small>Inicializace interaktivní scény</small></div>
         <div id="errorPanel" class="error-panel" role="alert" hidden><strong>3D scénu se nepodařilo načíst.</strong><p>Obnovte stránku a zkontrolujte připojení k internetu. Pro vykreslování je potřeba WebGL a knihovna Three.js.</p></div>
         <div class="viewport-tip"><span class="tip-icon">↻</span> Tažením myši otáčej · Kolečkem přibližuj</div>
+        <div class="focus-badge" id="focusBadge" hidden>◎ Celý kůň</div>
         <div class="view-nav" aria-label="Přednastavené pohledy"><span class="nav-caption">POHLED</span>
           <button class="view-btn selected" data-view="iso" aria-pressed="true" type="button">3D</button>
           <button class="view-btn" data-view="side" aria-pressed="false" type="button">Bok</button>
@@ -98,8 +124,8 @@
         <div class="orientation-key" aria-label="Orientace těla"><span>KRANIÁLNĚ</span><span class="arrow-key">⟵ &nbsp; OSA TĚLA &nbsp; ⟶</span><span>KAUDÁLNĚ</span></div>
       </div>
       <div class="stage-bottom">
-        <div class="bottom-icon">◎</div><div><strong>Tip pro výuku</strong><span>Kombinuj více rovin a poté přepni na pohled zepředu nebo shora, aby se ukázaly jejich vzájemné vztahy.</span></div>
-        <div class="shortcuts">1–4 <span>roviny</span> &nbsp; R <span>reset</span></div>
+        <div class="bottom-icon">◎</div><div><strong>Tip pro výuku</strong><span>Nejprve zkoumej roviny a směry na celém koni, potom plynule přibliž hlavu nebo končetiny.</span></div>
+        <div class="shortcuts">1–4 <span>roviny</span> &nbsp; R <span>celý kůň</span></div>
       </div>
     </main>
   </div>

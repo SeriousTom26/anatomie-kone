@@ -30,3 +30,19 @@ h1{margin:13px 0 10px;font-size:clamp(27px,2.65vw,34px);line-height:1.14;letter-
 @media(max-width:720px){.app-shell{height:auto;min-height:100dvh;display:flex;flex-direction:column;overflow:visible}.sidebar{order:2;border-right:0;border-top:1px solid var(--border)}.sidebar-scroll{overflow:visible;padding:0 21px 24px}.brand{height:64px}.hero-copy{padding:23px 0 22px}.hero-copy h1{font-size:29px}.main-stage{order:1;height:min(69dvh,650px);min-height:430px}.stage-topbar{height:55px;padding:0 15px}.viewport-tip{font-size:9px;top:12px;left:12px;padding:6px 8px}.view-nav{bottom:14px}.reset-btn{right:10px;bottom:20px;height:35px;width:35px;font-size:20px}.view-btn{padding:9px}.nav-caption{display:none}.stage-bottom{height:64px;gap:9px;padding:0 12px}.stage-bottom span{font-size:10px}.stage-bottom strong{font-size:11px}.bottom-icon{height:30px;width:30px;font-size:21px}.breadcrumbs{font-size:8px;letter-spacing:.5px}.breadcrumbs span{padding:0 5px}.online-indicator{font-size:8px}.control-section{padding-top:21px}.plane-list{grid-template-columns:1fr 1fr}.plane-toggle{padding:9px;gap:7px}.plane-swatch{width:27px;height:27px}.plane-text strong{font-size:11px}.plane-text small{font-size:9px}.switch{width:25px;height:16px}.switch span{width:10px;height:10px}.plane-toggle.active .switch span{transform:translateX(9px)}}
 @media(max-width:380px){.plane-list{grid-template-columns:1fr}.view-btn{font-size:10px;padding:8px}.view-nav{max-width:calc(100% - 55px);left:12px;transform:none}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+/* Anatomie koně 2.0 – zaměření oblastí a směry */
+.focus-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.focus-btn{min-height:50px;display:flex;align-items:center;justify-content:flex-start;gap:9px;border-radius:9px;border:1px solid #2a4653;background:#142a37;color:#c5d5dc;text-align:left;padding:9px 10px;font-size:11.3px;font-weight:730;transition:border-color .2s,background .2s}
+.focus-btn:hover{background:#1b3e49}.focus-btn.selected{border-color:#6ac8b4;background:#1d4a4b;color:#f0fff8}
+.focus-icon{display:grid;place-items:center;width:23px;height:23px;font-size:18px;color:#9ddacb;flex-shrink:0}
+.focus-note{margin:12px 0 0;font-size:11px;line-height:1.5;color:#9db7c1;min-height:15px}
+.direction-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.direction-btn{display:flex;align-items:center;gap:9px;text-align:left;color:#d7e4e6;background:#142a37;border:1px solid #304b58;padding:9px;border-radius:9px;min-width:0;font-weight:750;font-size:11.5px}
+.direction-btn:hover{background:#24434e}.direction-btn.selected{border-color:#e5bb80;background:#473d35;color:#fff6e9}
+.direction-btn span:last-child{min-width:0}.direction-btn small{font-size:10px;color:#94adba;font-weight:450;display:block;margin-top:3px}.direction-btn.selected small{color:#e7caa2}
+.direction-glyph{display:grid;place-items:center;width:26px;height:26px;border-radius:7px;background:#284451;color:#e7c692;font-size:18px;flex-shrink:0}
+.direction-btn.selected .direction-glyph{background:#755835;color:#fff5e0}
+.direction-explanation{border-left:2px solid #b6a073;padding-left:10px;color:#bad0d5;font-size:11px;line-height:1.6;margin:12px 0 0}
+.focus-badge{position:absolute;top:74px;left:25px;z-index:3;padding:8px 12px;border-radius:8px;background:#163b40e8;border:1px solid #6cbca7;color:#d8fff6;font-size:11px;font-weight:750;pointer-events:none}
+.focus-badge[hidden]{display:none}
+@media(max-width:720px){.focus-badge{top:53px;left:12px;font-size:10px}.focus-list,.direction-list{grid-template-columns:repeat(2,minmax(0,1fr))}}
