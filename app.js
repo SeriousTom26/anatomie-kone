@@ -176,29 +176,79 @@ function chooseDirection(key){
   refreshDirections();
 }
 
-function fullDistance(){
-  if(!camera||!root)return 6.0;
-  const size=modelBounds.getSize(new THREE.Vector3());
-  if(size.lengthSq()===0)return 6.0;
-  const h=Math.max(240,root.clientHeight),w=Math.max(250,root.clientWidth);
-  const v=THREE.MathUtils.degToRad(camera.fov/2);
-  const halfH=Math.atan(Math.tan(v)*w/h);
-  const maxHorizontal=Math.sqrt(size.x**2+size.z**2);
-  return Math.max(size.y/(2*Math.tan(v)),maxHorizontal/(2*Math.tan(halfH)))*1.48;
+// Přesné optické zarámování: zohledňuje všechny rohy 3D modelu, hloubku,
+// perspektivu i skutečný poměr stran zobrazovacího pole. Žádné odhady podle šířky.
+function fullDistance(direction = defaultOrbit){
+  if(!camera || modelBounds.isEmpty()) return 8.5;
+
+  const width = Math.max(1, root.clientWidth);
+  const height = Math.max(1, root.clientHeight);
+  const aspect = width / height;
+  const verticalTan = Math.tan(THREE.MathUtils.degToRad(camera.fov * .5));
+  const horizontalTan = verticalTan * aspect;
+  const towardCamera = direction.clone().normalize();
+  // Při pohledu shora změň pomocný vektor, aby projekce zůstala numericky stabilní.
+  const referenceUp = Math.abs(towardCamera.y) > .97
+    ? new THREE.Vector3(0,0,1) : new THREE.Vector3(0,1,0);
+  const right = new THREE.Vector3().crossVectors(referenceUp,towardCamera).normalize();
+  const up = new THREE.Vector3().crossVectors(towardCamera,right).normalize();
+  const center = modelCenter;
+  const min = modelBounds.min, max = modelBounds.max;
+  const point = new THREE.Vector3(), offset = new THREE.Vector3();
+  let distance = 0;
+
+  // Bezpečná plocha: model se musí celý vejít do vnitřních 72 % šířky
+  // a 63 % výšky viewportu; nepřekryjí ho ani dolní ovládací tlačítka.
+  const useHorizontal = .72;
+  const useVertical = .63;
+  for(const x of [min.x,max.x]){
+    for(const y of [min.y,max.y]){
+      for(const z of [min.z,max.z]){
+        point.set(x,y,z);
+        offset.subVectors(point,center);
+        const depthTowardCamera = offset.dot(towardCamera);
+        const horizontalNeed = Math.abs(offset.dot(right)) / (horizontalTan * useHorizontal);
+        const verticalNeed = Math.abs(offset.dot(up)) / (verticalTan * useVertical);
+        // Kamera musí být před nejbližším rohem modelu a jeho projekce
+        // nesmí přesahovat dostupnou šířku nebo výšku.
+        distance = Math.max(distance, depthTowardCamera + horizontalNeed,
+          depthTowardCamera + verticalNeed);
+      }
+    }
+  }
+  return Math.max(4.0, distance * 1.08);
 }
-function focusDistance(key){
-  if(key==='all')return fullDistance();
+function focusDistance(key,direction){
+  if(key==='all')return fullDistance(direction);
   const h=Math.max(250,root.clientHeight),w=Math.max(250,root.clientWidth);
   const f=THREE.MathUtils.degToRad(camera.fov/2);
   const horizontal=Math.atan(Math.tan(f)*w/h);
-  return Math.max(FOCUS[key].span/(2*Math.tan(f)),(FOCUS[key].span*.64)/(2*Math.tan(horizontal)))*1.48;
+  return Math.max(FOCUS[key].span/(2*Math.tan(f)),(FOCUS[key].span*.64)/(2*Math.tan(horizontal)))*1.65;
+}
+function currentCameraDirection(){
+  const offset = camera.position.clone().sub(controls.target);
+  return offset.lengthSq() > 1e-6 ? offset.normalize() : defaultOrbit.clone();
+}
+// Posun modelu pomocí kolečka je záměrný. Po ručním zoomu proto
+// automatické oddalování vypneme až do kliknutí na „Celý kůň“ / reset.
+let manuallyZoomed = false;
+function fitCurrentRotation(){
+  if(!isReady || cameraTween || activeFocus!=='all' || manuallyZoomed)return;
+  controls.target.copy(modelCenter);
+  const dir = currentCameraDirection();
+  const required = fullDistance(dir);
+  const actual = camera.position.distanceTo(modelCenter);
+  if(actual < required){
+    camera.position.copy(modelCenter).addScaledVector(dir,required);
+  }
 }
 function moveCamera(key=activeFocus,view=activeView,animated=true){
   if(!camera||!controls)return;
   activeFocus=key;activeView=view;
   const target=key==='all'?modelCenter.clone():FOCUS[key].point.clone();
-  const distance=focusDistance(key);
   const dir=viewDirections[view]||viewDirections.iso;
+  const distance=focusDistance(key,dir);
+  manuallyZoomed=false;
   // Full-view and regional orbit are about their *own* center, never the old position.
   const position=target.clone().addScaledVector(dir,distance);
   controls.autoRotate=false;
@@ -224,17 +274,16 @@ function moveCamera(key=activeFocus,view=activeView,animated=true){
 function handleResize(){
   if(!camera||!renderer)return;
   const width=Math.max(1,root.clientWidth),height=Math.max(1,root.clientHeight);
-  camera.aspect=width/height;camera.updateProjectionMatrix();
+  camera.aspect=width/height;
+  camera.updateProjectionMatrix();
   renderer.setSize(width,height,false);
-  // On viewport changes, ensure the horse remains within the view without moving its target.
-  if(isReady&&!cameraTween){
-    const desired=focusDistance(activeFocus);
-    const current=camera.position.distanceTo(controls.target);
-    if(current < desired*.94){
-      const dir=camera.position.clone().sub(controls.target).normalize();
-      camera.position.copy(controls.target).addScaledVector(dir,desired);
-      controls.update();
-    }
+  if(isReady && !cameraTween && !manuallyZoomed){
+    const direction = currentCameraDirection();
+    const target = activeFocus==='all' ? modelCenter : FOCUS[activeFocus].point;
+    const wanted = focusDistance(activeFocus,direction);
+    controls.target.copy(target);
+    camera.position.copy(target).addScaledVector(direction,wanted);
+    controls.update();
   }
 }
 function showError(err){
@@ -254,6 +303,7 @@ function setupUI(){
   });
   document.querySelectorAll('.view-btn').forEach(btn=>btn.addEventListener('click',()=>moveCamera(activeFocus,btn.dataset.view)));
   document.getElementById('resetCamera').addEventListener('click',()=>moveCamera('all','iso'));
+  document.getElementById('resetCamera').title='Zobrazit celého koně uprostřed';
   opacityRange.addEventListener('input',updateOpacity);
   document.getElementById('showLabels').addEventListener('change',e=>{labelsVisible=e.target.checked;refreshPlanes();});
   document.getElementById('autoRotate').addEventListener('change',e=>{
@@ -297,7 +347,11 @@ function init(){
   controls.enableDamping=true;controls.dampingFactor=.065;
   controls.enablePan=false; // DŮLEŽITÉ: otáčení nemůže koně odsunout mimo střed.
   controls.zoomToCursor=false;
-  controls.minDistance=.8;controls.maxDistance=17;
+  renderer.domElement.addEventListener('wheel',()=>{manuallyZoomed=true;},{passive:true});
+  renderer.domElement.addEventListener('touchstart',e=>{
+    if(e.touches.length>1)manuallyZoomed=true;
+  },{passive:true});
+  controls.minDistance=.8;controls.maxDistance=35;
   controls.minPolarAngle=.045;controls.maxPolarAngle=Math.PI-.045;
   controls.autoRotateSpeed=.8;
   controls.update();
@@ -332,7 +386,9 @@ function init(){
       controls.target.lerpVectors(cameraTween.fromTarget,cameraTween.toTarget,s);
       if(t>=1)cameraTween=null;
     }
-    controls.update();renderer.render(scene,camera);
+    controls.update();
+    fitCurrentRotation();
+    renderer.render(scene,camera);
   }
   requestAnimationFrame(animate);
 }
