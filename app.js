@@ -280,165 +280,22 @@ function measuredBounds(object){
   ));
   return box;
 }
-// VE VERZI 3.3 nepoužíváme pro finální centrování žádné odhadované hranice GLB.
-// Vykreslíme pouze samotného koně bíle do malého offscreen framebufferu a
-// změříme skutečně vykreslené pixely. Tím opravíme modely s neobvyklými
-// transformacemi, skinningem a importovanými geometrickými hranicemi.
-let maskTarget=null, maskMaterial=null, maskPixels=null;
-let visualFitPending=false;
-let isVisualFitting=false;
-let pixelReadbackBroken=false;
+// 3.4: stabilní rámování bez čtení GPU pixelů (WebGL readPixels).
 let lastCanvasWidth=0, lastCanvasHeight=0;
-
-function horsePixelBounds(){
-  if(!horse || !renderer || !camera || !scene) return null;
-  const viewWidth=Math.max(1,root.clientWidth),viewHeight=Math.max(1,root.clientHeight);
-  if(viewWidth<50 || viewHeight<50)return null;
-  // Poměr stran musí odpovídat skutečnému canvasu, jinak by centrování lhalo.
-  const width=320, height=Math.max(80,Math.min(320,Math.round(width*viewHeight/viewWidth)));
-  if(!maskTarget || maskTarget.width!==width || maskTarget.height!==height){
-    maskTarget?.dispose();
-    maskTarget=new THREE.WebGLRenderTarget(width,height,{depthBuffer:true,stencilBuffer:false});
-    maskPixels=new Uint8Array(width*height*4);
-  }
-  if(!maskMaterial){
-    maskMaterial=new THREE.MeshBasicMaterial({color:0xffffff,side:THREE.DoubleSide,depthTest:true,depthWrite:true});
-    maskMaterial.toneMapped=false;
-  }
-  // Vyhradíme vrstvu 31: grid, roviny, štítky ani šipky nesmějí ovlivnit masku.
-  horse.traverse(object=>object.layers.enable(31));
-  const previousLayers=camera.layers.mask;
-  const previousOverride=scene.overrideMaterial;
-  const previousBackground=scene.background;
-  const previousTarget=renderer.getRenderTarget();
-  let measured=null;
-  try{
-    camera.layers.set(31);
-    scene.overrideMaterial=maskMaterial;
-    scene.background=new THREE.Color(0x000000);
-    camera.updateMatrixWorld(true);
-    renderer.setRenderTarget(maskTarget);
-    renderer.clear(true,true,true);
-    renderer.render(scene,camera);
-    renderer.readRenderTargetPixels(maskTarget,0,0,width,height,maskPixels);
-    let minX=width,minY=height,maxX=-1,maxY=-1,coverage=0;
-    for(let y=0;y<height;y++){
-      for(let x=0;x<width;x++){
-        const off=(y*width+x)*4;
-        // MeshBasicMaterial bílý, scéna černá. Nezávisí na barvě srsti ani osvětlení.
-        if(maskPixels[off]>40 || maskPixels[off+1]>40 || maskPixels[off+2]>40){
-          if(x<minX)minX=x;if(x>maxX)maxX=x;
-          if(y<minY)minY=y;if(y>maxY)maxY=y;
-          coverage++;
-        }
-      }
-    }
-    if(maxX>=minX && maxY>=minY && coverage>=5){
-      measured={minX,minY,maxX,maxY,width,height,coverage};
-    }
-  }catch(error){
-    pixelReadbackBroken=true;
-    console.warn('Měření siluety koně není dostupné:',error);
-  }
-  finally{
-    renderer.setRenderTarget(previousTarget);
-    scene.background=previousBackground;
-    scene.overrideMaterial=previousOverride;
-    camera.layers.mask=previousLayers;
-    renderer.setViewport(0,0,viewWidth,viewHeight);
-  }
-  return measured;
-}
-
-// Fit skutečného obrazu koně: pokud je useknutý u kraje, nejprve oddálit;
-// následně posunout současně kameru i orbitální střed v obrazových souřadnicích.
-function fitHorseVisually(){
-  if(!isReady || !horse || !camera || !controls || activeFocus!=='all' || isVisualFitting)return;
-  isVisualFitting=true;
-  if(pixelReadbackBroken){isVisualFitting=false;return;}
-  const originalPosition=camera.position.clone();
-  const originalTarget=controls.target.clone();
-  let foundAnyPixels=false;
-  const oldDamping=controls.enableDamping;
-  controls.enableDamping=false;
-  const tanY=Math.tan(THREE.MathUtils.degToRad(camera.fov*.5));
-  camera.far=Math.max(500,camera.far);
-  camera.updateProjectionMatrix();
-  try{
-    for(let attempt=0;attempt<24;attempt++){
-      controls.update();
-      const bounds=horsePixelBounds();
-      if(!bounds){
-        if(pixelReadbackBroken)break;
-        // Pokud je model celý za hranou záběru, oddalujeme, dokud se neobjeví.
-        const dir=currentCameraDirection();
-        const d=camera.position.distanceTo(controls.target);
-        camera.position.copy(controls.target).addScaledVector(dir,Math.min(2000,d*1.9));
-        continue;
-      }
-      foundAnyPixels=true;
-      const {minX,minY,maxX,maxY,width,height}=bounds;
-      const contentW=Math.max(1,maxX-minX+1),contentH=Math.max(1,maxY-minY+1);
-      const borderX=Math.max(3,width*.025), borderY=Math.max(3,height*.025);
-      const clipped=minX<=borderX || maxX>=width-1-borderX ||
-        minY<=borderY || maxY>=height-1-borderY;
-      const ratio=Math.max(contentW/(width*.66),contentH/(height*.67));
-      const ndcX=((minX+maxX+1)/width)-1;
-      const ndcY=((minY+maxY+1)/height)-1; // gl.readPixels má osu Y zdola.
-      const dir=currentCameraDirection();
-      const d=Math.max(.1,camera.position.distanceTo(controls.target));
-      // Pokud se objekt dotýká okraje, především oddálíme, i když zatím
-      // vidíme jen část. Potom se objeví skryté části koně a zpřesní se bbox.
-      let zoom=clipped?Math.max(1.7,ratio*1.25):Math.max(1,ratio*1.06);
-      if(!clipped && ratio<.62)zoom=Math.max(.78,ratio*1.06);
-      zoom=Math.max(.78,Math.min(zoom,3.0));
-      const nextDistance=Math.max(1.2,Math.min(2000,d*zoom));
-      camera.position.copy(controls.target).addScaledVector(dir,nextDistance);
-      camera.updateMatrixWorld(true);
-      // Vektor pohybu v rovině kamery: objekt vpravo => kameru posunout vpravo.
-      const right=new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion);
-      const up=new THREE.Vector3(0,1,0).applyQuaternion(camera.quaternion);
-      const shift=right.multiplyScalar(ndcX*nextDistance*tanY*camera.aspect)
-        .addScaledVector(up,ndcY*nextDistance*tanY);
-      camera.position.add(shift);
-      controls.target.add(shift);
-      controls.update();
-      if(!clipped && ratio<=.98 && ratio>=.62 &&
-         Math.abs(ndcX)<.025 && Math.abs(ndcY)<.025)break;
-    }
-    // Při nemožnosti přečíst obraz z GPU nezkazit dosavadní záběr.
-    if(!foundAnyPixels || pixelReadbackBroken){
-      controls.target.copy(originalTarget);
-      camera.position.copy(originalPosition);
-      controls.update();
-      return;
-    }
-    // Naposledy ověřit výslednou siluetu a ponechat rezervu i při rotaci.
-    controls.update();
-    const final=horsePixelBounds();
-    if(final){
-      const left=final.minX/final.width, right=final.maxX/final.width;
-      const bottom=final.minY/final.height, top=final.maxY/final.height;
-      console.info('Anatomie koně 3.3: skutečný rozsah modelu na plátně:',
-        {left,right,bottom,top});
-      if(left<.02||right>.98||bottom<.02||top>.98){
-        const dir=currentCameraDirection();
-        camera.position.copy(controls.target).addScaledVector(dir,
-          Math.min(2000,camera.position.distanceTo(controls.target)*1.65));
-      }
-    }
-  }finally{
-    controls.enableDamping=oldDamping;
-    controls.update();
-    isVisualFitting=false;
-  }
+function fitHorseDeterministically(force=false){
+  if(!isReady || !camera || !controls || modelBounds.isEmpty() || activeFocus!=='all')return;
+  if(manuallyZoomed && !force)return;
+  const dir=currentCameraDirection();
+  controls.target.copy(modelCenter);
+  camera.position.copy(modelCenter).addScaledVector(dir,fullDistance(dir));
+  camera.lookAt(modelCenter);
+  controls.update();
 }
 function scheduleVisualFit(){
-  if(visualFitPending || !isReady || activeFocus!=='all' || manuallyZoomed)return;
-  visualFitPending=true;
+  if(!isReady || cameraTween || activeFocus!=='all' || manuallyZoomed)return;
   requestAnimationFrame(()=>{
-    visualFitPending=false;
-    if(isReady && !cameraTween && activeFocus==='all' && !manuallyZoomed)fitHorseVisually();
+    if(isReady && !cameraTween && activeFocus==='all' && !manuallyZoomed)
+      fitHorseDeterministically();
   });
 }
 
@@ -499,8 +356,10 @@ function currentCameraDirection(){
 // automatické oddalování vypneme až do kliknutí na „Celý kůň“ / reset.
 let manuallyZoomed = false;
 function fitCurrentRotation(){
-  // Finální rámování řídí vizuální silueta koně, ne odhadnuté GLB meze.
-  // Po skončení ručního otáčení proběhne nové fitHorseVisually().
+  if(!isReady || cameraTween || activeFocus!=='all' || manuallyZoomed)return;
+  const dir=currentCameraDirection();
+  if(camera.position.distanceTo(modelCenter)<fullDistance(dir))
+    fitHorseDeterministically();
 }
 function moveCamera(key=activeFocus,view=activeView,animated=true){
   if(!camera||!controls)return;
@@ -513,7 +372,7 @@ function moveCamera(key=activeFocus,view=activeView,animated=true){
   const position=target.clone().addScaledVector(dir,distance);
   controls.autoRotate=false;
   document.getElementById('autoRotate').checked=false;
-  if(!animated){controls.target.copy(target);camera.position.copy(position);cameraTween=null;controls.update();if(key==='all')scheduleVisualFit();}
+  if(!animated){controls.target.copy(target);camera.position.copy(position);cameraTween=null;controls.update();if(key==='all')fitHorseDeterministically(true);}
   else cameraTween={started:performance.now(),duration:850,
     fromPos:camera.position.clone(),toPos:position,
     fromTarget:controls.target.clone(),toTarget:target};
@@ -537,6 +396,7 @@ function handleResize(){
   camera.aspect=width/height;
   camera.updateProjectionMatrix();
   renderer.setSize(width,height,false);
+  renderer.setViewport(0,0,width,height);
   const changed=(width!==lastCanvasWidth || height!==lastCanvasHeight);
   lastCanvasWidth=width;lastCanvasHeight=height;
   if(changed && isReady && !cameraTween && !manuallyZoomed && activeFocus==='all'){
@@ -627,7 +487,7 @@ function finishHorse(gltf,label){
   modelStatus.textContent=label;
   moveCamera('all','iso',false);
   handleResize();
-  scheduleVisualFit();
+  fitHorseDeterministically(true);
 }
 
 function loadRemoteModel(index=0){
@@ -726,7 +586,7 @@ function init(){
       const s=t*t*(3-2*t);
       camera.position.lerpVectors(cameraTween.fromPos,cameraTween.toPos,s);
       controls.target.lerpVectors(cameraTween.fromTarget,cameraTween.toTarget,s);
-      if(t>=1){cameraTween=null;if(activeFocus==='all')scheduleVisualFit();}
+      if(t>=1){cameraTween=null;if(activeFocus==='all')fitHorseDeterministically(true);}
     }
     controls.update();
     fitCurrentRotation();
