@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#0d1a24" />
   <meta name="description" content="Interaktivní 3D anatomické roviny koně pro výuku veterinární anatomie." />
   <title>Anatomické roviny koně | 3D výukový atlas</title>
-  <link rel="stylesheet" href="./styles.css?v=3.6.0" />
+  <link rel="stylesheet" href="./styles.css?v=3.7.0" />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <script type="importmap">
   {
@@ -24,7 +24,7 @@
       <header class="brand">
         <div class="brand-icon" aria-hidden="true">✦</div>
         <div class="brand-copy"><span class="brand-topline">VETERINÁRNÍ ANATOMIE</span><strong>3D výukový atlas</strong></div>
-        <span class="brand-pill">VERZE 3.6</span>
+        <span class="brand-pill">VERZE 3.7</span>
       </header>
 
       <div class="sidebar-scroll">
@@ -36,25 +36,25 @@
 
         <section class="control-section" aria-labelledby="planes-heading">
           <div class="section-title-row"><h2 id="planes-heading">Anatomické roviny</h2><span class="counter" id="planeCount">2 / 4</span></div>
-          <p class="section-subtitle">Zapínej roviny jednotlivě nebo současně.</p>
+          <p class="section-subtitle">Zapínej roviny jednotlivě nebo současně. Barevné popisky jsou součástí rovin a otáčejí se společně s nimi.</p>
           <div class="plane-list" role="group" aria-label="Přepínače rovin">
             <button class="plane-toggle active" type="button" data-plane="median" aria-pressed="true">
-              <span class="plane-swatch" style="--swatch:#ef8fba"><span class="swatch-mark"></span></span>
+              <span class="plane-swatch" style="--swatch:#ff6a95"><span class="swatch-mark"></span></span>
               <span class="plane-text"><strong>Mediánní</strong><small>Střední (midsagitální)</small></span>
               <span class="switch" aria-hidden="true"><span></span></span>
             </button>
             <button class="plane-toggle" type="button" data-plane="sagittal" aria-pressed="false">
-              <span class="plane-swatch" style="--swatch:#f0b967"><span class="swatch-mark"></span></span>
+              <span class="plane-swatch" style="--swatch:#ffd166"><span class="swatch-mark"></span></span>
               <span class="plane-text"><strong>Sagitální</strong><small>Rovnoběžná s mediánní</small></span>
               <span class="switch" aria-hidden="true"><span></span></span>
             </button>
             <button class="plane-toggle" type="button" data-plane="dorsal" aria-pressed="false">
-              <span class="plane-swatch" style="--swatch:#55d4cb"><span class="swatch-mark"></span></span>
+              <span class="plane-swatch" style="--swatch:#48ddc4"><span class="swatch-mark"></span></span>
               <span class="plane-text"><strong>Dorzální</strong><small>Hřbetní (frontální)</small></span>
               <span class="switch" aria-hidden="true"><span></span></span>
             </button>
             <button class="plane-toggle active" type="button" data-plane="transverse" aria-pressed="true">
-              <span class="plane-swatch" style="--swatch:#ac99f2"><span class="swatch-mark"></span></span>
+              <span class="plane-swatch" style="--swatch:#899fff"><span class="swatch-mark"></span></span>
               <span class="plane-text"><strong>Transverzální</strong><small>Příčná</small></span>
               <span class="switch" aria-hidden="true"><span></span></span>
             </button>
@@ -116,7 +116,7 @@
     </aside>
 
     <main class="main-stage" aria-label="3D scéna koně">
-      <div class="stage-topbar"><div class="breadcrumbs">ATLAS <span>/</span> KŮŇ <span>/</span> 3D ANATOMIE</div><span class="online-indicator"><span></span> 3D SCÉNA · VERZE 3.6</span></div>
+      <div class="stage-topbar"><div class="breadcrumbs">ATLAS <span>/</span> KŮŇ <span>/</span> 3D ANATOMIE</div><span class="online-indicator"><span></span> 3D SCÉNA · VERZE 3.7</span></div>
       <div class="viewport" id="viewport" aria-label="Otočný 3D model koně. Levým tlačítkem myši otáčejte, kolečkem přibližujte.">
         <div id="canvasRoot" class="canvas-root"></div>
         <div class="viewport-overlay" aria-hidden="true"></div>
@@ -139,6 +139,6 @@
       </div>
     </main>
   </div>
-  <script type="module" src="./app.js?v=3.6.0"></script>
+  <script type="module" src="./app.js?v=3.7.0"></script>
 </body>
 </html>

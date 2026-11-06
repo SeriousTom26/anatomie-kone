@@ -38,28 +38,28 @@ const MODEL_SOURCES = [
 
 const INFO = {
   median: {
-    name:'Mediánní rovina', color:'#ef8fba',
+    name:'Mediánní rovina', color:'#ff6a95',
     description:'Prochází podélně středem těla a rozděluje koně na pravou a levou polovinu. Je to jedna konkrétní sagitální rovina – střední (midsagitální).',
     pills:['Pravá polovina','Levá polovina'], visible:true, geometry:[3.65,2.66],
-    rotation:[0,0,0],position:[-.22,1.31,0],label:[-.95,2.70,.03],short:'MEDIÁNNÍ'
+    rotation:[0,0,0],position:[-.22,1.31,0],short:'MEDIÁNNÍ'
   },
   sagittal: {
-    name:'Sagitální rovina', color:'#f0b967',
+    name:'Sagitální rovina', color:'#ffd166',
     description:'Je rovnoběžná s mediánní rovinou. Pokud neprochází středem těla, dělí koně na nestejně velkou pravou a levou část.',
     pills:['Pravá část','Levá část'],visible:false, geometry:[3.55,2.48],
-    rotation:[0,0,0],position:[-.22,1.31,.36],label:[-.45,2.58,.36],short:'SAGITÁLNÍ'
+    rotation:[0,0,0],position:[-.22,1.31,.36],short:'SAGITÁLNÍ'
   },
   dorsal: {
-    name:'Dorzální rovina',color:'#55d4cb',
+    name:'Dorzální rovina',color:'#48ddc4',
     description:'Podélná rovina přibližně rovnoběžná s hřbetem stojícího koně. Rozděluje trup na dorzální (hřbetní) a ventrální (břišní) část. Také se nazývá frontální.',
     pills:['Dorzálně – ke hřbetu','Ventrálně – k břichu'],visible:false, geometry:[3.6,1.65],
-    rotation:[-Math.PI/2,0,0],position:[-.22,1.36,0],label:[-1.64,1.40,.81],short:'DORZÁLNÍ'
+    rotation:[-Math.PI/2,0,0],position:[-.22,1.36,0],short:'DORZÁLNÍ'
   },
   transverse: {
-    name:'Transverzální rovina',color:'#ac99f2',
+    name:'Transverzální rovina',color:'#899fff',
     description:'Příčná rovina kolmá na podélnou osu trupu. Odděluje kraniální část (směrem k hlavě) od kaudální části (směrem k ocasu).',
     pills:['Kraniálně – k hlavě','Kaudálně – k ocasu'],visible:true,geometry:[1.70,2.64],
-    rotation:[0,Math.PI/2,0],position:[-.10,1.32,0],label:[-.10,2.70,.67],short:'PŘÍČNÁ'
+    rotation:[0,Math.PI/2,0],position:[-.10,1.32,0],short:'TRANSVERZÁLNÍ'
   }
 };
 
@@ -116,6 +116,68 @@ function createLabel(text, hex, opts={}) {
   return sprite;
 }
 
+// Popisek není Sprite (který by se vždy otáčel za kamerou), ale skutečná
+// průhledná destička vložená do lokálních souřadnic anatomické roviny.
+// Přední i zadní strana mají vlastní, správně orientovaný nápis.
+function createEmbeddedPlaneLabel(name, hex) {
+  const canvas=document.createElement('canvas');
+  canvas.width=1024;
+  canvas.height=240;
+  const ctx=canvas.getContext('2d');
+  if(!ctx)return null;
+  ctx.clearRect(0,0,1024,240);
+  ctx.fillStyle='rgba(8,23,33,0.92)';
+  ctx.beginPath();
+  ctx.roundRect(12,12,1000,216,34);
+  ctx.fill();
+  ctx.strokeStyle=hex;
+  ctx.lineWidth=8;
+  ctx.stroke();
+  ctx.fillStyle=hex;
+  ctx.fillRect(47,54,13,133);
+  ctx.font='800 107px system-ui, Arial, sans-serif';
+  ctx.textBaseline='middle';
+  ctx.textAlign='left';
+  ctx.fillText(name,96,121,873);
+  const texture=new THREE.CanvasTexture(canvas);
+  texture.colorSpace=THREE.SRGBColorSpace;
+  texture.anisotropy=Math.min(8,renderer?.capabilities.getMaxAnisotropy()||1);
+  const geometry=new THREE.PlaneGeometry(1,1);
+  const material=new THREE.MeshBasicMaterial({
+    map:texture,transparent:true,opacity:1,side:THREE.FrontSide,
+    depthWrite:false,depthTest:true,toneMapped:false
+  });
+  const front=new THREE.Mesh(geometry,material);
+  const back=new THREE.Mesh(geometry,material);
+  // Druhý štítek je zrcadlově umístěn a otočen ke druhé straně roviny.
+  // Text tak není při pohledu zezadu převrácený.
+  back.rotation.y=Math.PI;
+  front.renderOrder=13;
+  back.renderOrder=13;
+  const labels=new THREE.Group();
+  labels.add(front,back);
+  labels.userData.front=front;
+  labels.userData.back=back;
+  return labels;
+}
+function positionEmbeddedPlaneLabel(group,key,width,height){
+  const labels=group.userData.label;
+  if(!labels)return;
+  const labelWidth=Math.min(1.22,width*.73);
+  const labelHeight=Math.min(.29,height*.22,labelWidth*.255);
+  const insetX=Math.max(.055,width*.035);
+  const insetY=Math.max(.055,height*.035);
+  const rightAligned=key==='sagittal'||key==='transverse';
+  const bottomAligned=key==='dorsal';
+  const x=(rightAligned?1:-1)*(width/2-labelWidth/2-insetX);
+  const y=(bottomAligned?-1:1)*(height/2-labelHeight/2-insetY);
+  const front=labels.userData.front,back=labels.userData.back;
+  front.scale.set(labelWidth,labelHeight,1);
+  back.scale.set(labelWidth,labelHeight,1);
+  // Popisky leží uvnitř barevné roviny, pár milimetrů nad jejím povrchem.
+  front.position.set(x,y,.012);
+  back.position.set(-x,y,-.012);
+}
 function createPlanes() {
   Object.entries(INFO).forEach(([key,p])=>{
     const group=new THREE.Group();
@@ -125,15 +187,21 @@ function createPlanes() {
     }));
     plane.renderOrder=5;
     const frame=new THREE.LineSegments(new THREE.EdgesGeometry(plane.geometry),new THREE.LineBasicMaterial({
-      color:p.color,transparent:true,opacity:.91,depthWrite:false
+      color:p.color,transparent:true,opacity:.96,depthWrite:false
     }));
-    frame.renderOrder=6;plane.add(frame);group.add(plane);
+    frame.renderOrder=6;
+    plane.add(frame);
+    const label=createEmbeddedPlaneLabel(p.short,p.color);
+    if(label){
+      plane.add(label); // DŮLEŽITÉ: stejná orientace a otáčení jako samotná rovina.
+      group.userData.label=label;
+    }
+    group.add(plane);
     group.position.set(...p.position);group.rotation.set(...p.rotation);
-    const label=createLabel(p.short,p.color);
-    if(label) {label.position.set(...p.label);scene.add(label);group.userData.label=label;}
     group.userData.surface=plane;
     scene.add(group);
     planeGroups.set(key,group);
+    positionEmbeddedPlaneLabel(group,key,...p.geometry);
   });
   refreshPlanes();
 }
@@ -144,7 +212,7 @@ function refreshPlanes(){
     // Detailní záběry zachovávají uživatelské přepínače, ale schovají plošné překryvy.
     const shown=p.visible && activeFocus==='all';
     group.visible=shown;
-    if(group.userData.label)group.userData.label.visible=shown && labelsVisible;
+    if(group.userData.label)group.userData.label.visible=labelsVisible;
     const btn=document.querySelector(`.plane-toggle[data-plane="${key}"]`);
     if(btn){btn.classList.toggle('active',p.visible);btn.setAttribute('aria-pressed',String(p.visible));}
   });
@@ -194,10 +262,10 @@ function createDirections(){
 function placePlanesAroundModel(){
   const b=modelBounds, s=b.getSize(new THREE.Vector3()), c=modelCenter;
   const specs={
-    median:{size:[s.x*1.10,s.y*1.15],pos:[c.x,c.y,c.z],rot:[0,0,0],label:[c.x-s.x*.21,b.max.y+s.y*.08,c.z]},
-    sagittal:{size:[s.x*1.10,s.y*1.15],pos:[c.x,c.y,c.z+s.z*.31],rot:[0,0,0],label:[c.x+s.x*.1,b.max.y+s.y*.08,c.z+s.z*.31]},
-    dorsal:{size:[s.x*1.10,s.z*1.95],pos:[c.x,b.min.y+s.y*.54,c.z],rot:[-Math.PI/2,0,0],label:[b.min.x,b.min.y+s.y*.58,b.max.z+s.z*.19]},
-    transverse:{size:[s.z*1.95,s.y*1.15],pos:[c.x,c.y,c.z],rot:[0,Math.PI/2,0],label:[c.x,b.max.y+s.y*.08,c.z+s.z*.53]}
+    median:{size:[s.x*1.10,s.y*1.15],pos:[c.x,c.y,c.z],rot:[0,0,0]},
+    sagittal:{size:[s.x*1.10,s.y*1.15],pos:[c.x,c.y,c.z+s.z*.31],rot:[0,0,0]},
+    dorsal:{size:[s.x*1.10,s.z*1.95],pos:[c.x,b.min.y+s.y*.54,c.z],rot:[-Math.PI/2,0,0]},
+    transverse:{size:[s.z*1.95,s.y*1.15],pos:[c.x,c.y,c.z],rot:[0,Math.PI/2,0]}
   };
   Object.entries(specs).forEach(([key,p])=>{
     const group=planeGroups.get(key), surface=group.userData.surface;
@@ -207,7 +275,7 @@ function placePlanesAroundModel(){
       if(ch.isLineSegments){ch.geometry.dispose();ch.geometry=new THREE.EdgesGeometry(surface.geometry);}
     });
     group.position.set(...p.pos);group.rotation.set(...p.rot);
-    if(group.userData.label)group.userData.label.position.set(...p.label);
+    positionEmbeddedPlaneLabel(group,key,...p.size);
   });
   refreshPlanes();
 }
