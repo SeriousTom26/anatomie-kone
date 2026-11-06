@@ -46,3 +46,14 @@ h1{margin:13px 0 10px;font-size:clamp(27px,2.65vw,34px);line-height:1.14;letter-
 .focus-badge{position:absolute;top:74px;left:25px;z-index:3;padding:8px 12px;border-radius:8px;background:#163b40e8;border:1px solid #6cbca7;color:#d8fff6;font-size:11px;font-weight:750;pointer-events:none}
 .focus-badge[hidden]{display:none}
 @media(max-width:720px){.focus-badge{top:53px;left:12px;font-size:10px}.focus-list,.direction-list{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Model v3 */
+.model-section{padding:14px 14px 12px;border:1px solid #486679;background:linear-gradient(135deg,#193745,#102b39);border-radius:11px;margin:16px 0 4px}
+.model-caption{font-size:9px;color:#7fd1bf;font-weight:850;letter-spacing:1.2px}
+.model-status{font-size:12px;color:#eaf5f3;font-weight:780;line-height:1.45;margin:7px 0 11px}
+.model-import{display:flex;align-items:center;justify-content:center;min-height:34px;font-size:11px;background:#22514f;color:#e2fff5;border:1px solid #5a9d8c;border-radius:7px;font-weight:750;cursor:pointer;padding:8px;text-align:center}
+.model-import:hover{background:#2b6660}
+.model-note{color:#a6c4ca;font-size:9.5px;line-height:1.55;margin:9px 0 0}
+.model-note code{color:#b7e8dc;overflow-wrap:anywhere}
+
+.model-flip{width:100%;margin-top:7px;padding:7px;background:transparent;color:#c6e6dc;border:1px solid #456b68;border-radius:7px;font-size:10.5px;cursor:pointer}.model-flip:hover{background:#244c50}.model-note a{color:#9de6d5;text-decoration:underline}

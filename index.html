@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0d1a24" />
   <meta name="description" content="Interaktivní 3D anatomické roviny koně pro výuku veterinární anatomie." />
   <title>Anatomické roviny koně | 3D výukový atlas</title>
-  <link rel="stylesheet" href="./styles.css" />
+  <link rel="stylesheet" href="./styles.css?v=3.1" />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <script type="importmap">
   {
@@ -23,7 +23,7 @@
       <header class="brand">
         <div class="brand-icon" aria-hidden="true">✦</div>
         <div class="brand-copy"><span class="brand-topline">VETERINÁRNÍ ANATOMIE</span><strong>3D výukový atlas</strong></div>
-        <span class="brand-pill">VERZE 2.1</span>
+        <span class="brand-pill">VERZE 3.1</span>
       </header>
 
       <div class="sidebar-scroll">
@@ -59,6 +59,15 @@
             </button>
           </div>
           <div class="two-buttons"><button id="showAll" class="small-btn" type="button">＋ Zobrazit vše</button><button id="hideAll" class="small-btn" type="button">− Skrýt vše</button></div>
+        </section>
+
+        <section class="model-section" aria-label="Použitý prostorový model">
+          <div class="model-caption">3D MODEL · NOVÁ VERZE</div>
+          <div id="modelStatus" class="model-status" role="status">Načítám realistický 3D model…</div>
+          <label class="model-import" for="customModelInput">↥ Nahrát vlastní profesionální GLB</label>
+          <input id="customModelInput" type="file" accept=".glb,model/gltf-binary" hidden />
+          <button type="button" id="flipHorse" class="model-flip">⇄ Otočit hlavu na druhou stranu</button>
+          <p class="model-note">Výchozí model je nově vygenerovaný realistický GLB model. Pokud chceš úplně nezávislý provoz bez vzdáleného odkazu, stáhni soubor a ulož ho do GitHubu jako <code>models/realisticky-kun.glb</code>.</p>
         </section>
 
         <section class="control-section" aria-labelledby="focus-heading">
@@ -101,12 +110,12 @@
           <div class="direction-pills" id="infoPills"><span>Pravá</span><span>Levá</span></div>
         </section>
 
-        <div class="sidebar-footer">Výuková 3D vizualizace · Detailnější schématický model koně, nikoli anatomický preparát. Odborné názvy odpovídají veterinární topografii.</div>
+        <div class="sidebar-footer">Výuková 3D vizualizace · Model koně ze samostatného 3D zdroje CC0. Nenahrazuje anatomický preparát. Odborné názvy odpovídají veterinární topografii.</div>
       </div>
     </aside>
 
     <main class="main-stage" aria-label="3D scéna koně">
-      <div class="stage-topbar"><div class="breadcrumbs">ATLAS <span>/</span> KŮŇ <span>/</span> 3D ANATOMIE</div><span class="online-indicator"><span></span> 3D SCÉNA</span></div>
+      <div class="stage-topbar"><div class="breadcrumbs">ATLAS <span>/</span> KŮŇ <span>/</span> 3D ANATOMIE</div><span class="online-indicator"><span></span> 3D SCÉNA · VERZE 3.1</span></div>
       <div class="viewport" id="viewport" aria-label="Otočný 3D model koně. Levým tlačítkem myši otáčejte, kolečkem přibližujte.">
         <div id="canvasRoot" class="canvas-root"></div>
         <div class="viewport-overlay" aria-hidden="true"></div>
@@ -129,6 +138,6 @@
       </div>
     </main>
   </div>
-  <script type="module" src="./app.js?v=2.1"></script>
+  <script type="module" src="./app.js?v=3.1"></script>
 </body>
 </html>

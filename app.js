@@ -13,6 +13,28 @@ const infoDot = document.getElementById('infoDot');
 const infoDescription = document.getElementById('infoDescription');
 const infoPills = document.getElementById('infoPills');
 const count = document.getElementById('planeCount');
+const modelStatus = document.getElementById('modelStatus');
+const customModelInput = document.getElementById('customModelInput');
+// Skutečný 3D model, nikoliv 2D obrázek.
+// Primárně se načítá nově vygenerovaný realistický GLB model; následně dva záložní zdroje.
+const MODEL_SOURCES = [
+  {
+    label: 'Realistický kůň • Higgsfield GLB',
+    url: 'https://d8j0ntlcm91z4.cloudfront.net/user_3Lgrgq0ipgSSAd6kz8hX86Ndvrj/hf_20261105_135615_807798fc-1853-46a8-877b-ab7c20617972.glb',
+    source: 'https://three.ws/viewer?src=https%3A%2F%2Fd8j0ntlcm91z4.cloudfront.net%2Fuser_3Lgrgq0ipgSSAd6kz8hX86Ndvrj%2Fhf_20261105_135615_807798fc-1853-46a8-877b-ab7c20617972.glb'
+  },
+  {
+    label: 'Standing Horse • Innerscene (záložní zdroj)',
+    url: 'https://files.innerscene.com/library/standing-horse-01d8563f/0107d59ef4ff275f0158/horse-original.glb',
+    source: 'https://www.innerscene.com/tools/library/3d-parts/standing-horse-01d8563f'
+  },
+  {
+    label: 'Horse Standing • Innerscene (záložní zdroj)',
+    url: 'https://files.innerscene.com/library/horse-standing-365496af/82c54e2a17480f87f492/horse-standing.glb',
+    source: 'https://www.innerscene.com/tools/library/3d-parts/horse-standing-365496af'
+  }
+];
+
 
 const INFO = {
   median: {
@@ -142,22 +164,60 @@ function updateOpacity(){
 }
 
 function createDirections(){
+  arrowGroups.forEach(group=>{scene.remove(group);group.traverse(node=>{if(node.geometry)node.geometry.dispose();});});
+  arrowGroups.clear();
+  const c=modelCenter, b=modelBounds, s=b.getSize(new THREE.Vector3());
+  const starts={
+    cranial: new THREE.Vector3(c.x-s.x*.12,b.min.y+s.y*.68,b.max.z+s.z*.18),
+    caudal: new THREE.Vector3(c.x+s.x*.07,b.min.y+s.y*.68,b.max.z+s.z*.18),
+    dorsal: new THREE.Vector3(c.x,b.min.y+s.y*.57,b.max.z+s.z*.22),
+    ventral: new THREE.Vector3(c.x,b.min.y+s.y*.47,b.max.z+s.z*.22)
+  };
   Object.entries(DIRECTIONS).forEach(([key,d])=>{
-    const group=new THREE.Group();
-    const color=0xe8c18a;
-    const start=new THREE.Vector3(...d.origin);
-    const arrow=new THREE.ArrowHelper(d.vector,start,d.length,color,.17,.095);
-    arrow.line.material.depthTest=false;
-    arrow.cone.material.depthTest=false;
+    const group=new THREE.Group(), color=0xe8c18a;
+    const start=starts[key];
+    const length=(key==='cranial'||key==='caudal')?s.x*.21:s.y*.29;
+    const arrow=new THREE.ArrowHelper(d.vector,start,length,color,length*.23,length*.12);
+    arrow.line.material.depthTest=false;arrow.cone.material.depthTest=false;
     arrow.line.renderOrder=8;arrow.cone.renderOrder=9;
     group.add(arrow);
-    const end=start.clone().addScaledVector(d.vector,d.length+.13);
-    const label=createLabel(d.label,'#e7c18a',{width:.91,height:.23});
-    if(label){label.position.copy(end);label.position.z+=.07;group.add(label);}
-    group.visible=false;
-    scene.add(group);
-    arrowGroups.set(key,group);
+    const end=start.clone().addScaledVector(d.vector,length*1.2);
+    const label=createLabel(d.label,'#e7c18a',{width:.96,height:.25});
+    if(label){label.position.copy(end);label.position.z+=.05;group.add(label);}
+    group.visible=false;scene.add(group);arrowGroups.set(key,group);
   });
+  refreshDirections();
+}
+// Roviny jsou odvozeny ze skutečného prostorového obalu načteného modelu,
+// nikoli z pevně zadaných souřadnic starého schematického koně.
+function placePlanesAroundModel(){
+  const b=modelBounds, s=b.getSize(new THREE.Vector3()), c=modelCenter;
+  const specs={
+    median:{size:[s.x*1.10,s.y*1.15],pos:[c.x,c.y,c.z],rot:[0,0,0],label:[c.x-s.x*.21,b.max.y+s.y*.08,c.z]},
+    sagittal:{size:[s.x*1.10,s.y*1.15],pos:[c.x,c.y,c.z+s.z*.31],rot:[0,0,0],label:[c.x+s.x*.1,b.max.y+s.y*.08,c.z+s.z*.31]},
+    dorsal:{size:[s.x*1.10,s.z*1.95],pos:[c.x,b.min.y+s.y*.54,c.z],rot:[-Math.PI/2,0,0],label:[b.min.x,b.min.y+s.y*.58,b.max.z+s.z*.19]},
+    transverse:{size:[s.z*1.95,s.y*1.15],pos:[c.x,c.y,c.z],rot:[0,Math.PI/2,0],label:[c.x,b.max.y+s.y*.08,c.z+s.z*.53]}
+  };
+  Object.entries(specs).forEach(([key,p])=>{
+    const group=planeGroups.get(key), surface=group.userData.surface;
+    const old=surface.geometry;surface.geometry=new THREE.PlaneGeometry(...p.size);old.dispose();
+    // hrany byly vytvořeny ze staré geometrie, proto je nutné je také přepočítat
+    surface.children.forEach(ch=>{
+      if(ch.isLineSegments){ch.geometry.dispose();ch.geometry=new THREE.EdgesGeometry(surface.geometry);}
+    });
+    group.position.set(...p.pos);group.rotation.set(...p.rot);
+    if(group.userData.label)group.userData.label.position.set(...p.label);
+  });
+  refreshPlanes();
+}
+function setDynamicFocus(){
+  const b=modelBounds, s=b.getSize(new THREE.Vector3()), c=modelCenter;
+  FOCUS.head.point.set(b.min.x+s.x*.19,b.min.y+s.y*.76,c.z);
+  FOCUS.head.span=Math.max(.75,s.y*.62);
+  FOCUS.foreleg.point.set(b.min.x+s.x*.32,b.min.y+s.y*.33,c.z+s.z*.13);
+  FOCUS.foreleg.span=Math.max(.9,s.y*.81);
+  FOCUS.hindleg.point.set(b.min.x+s.x*.77,b.min.y+s.y*.34,c.z+s.z*.13);
+  FOCUS.hindleg.span=Math.max(.9,s.y*.85);
 }
 function refreshDirections(){
   arrowGroups.forEach((group,key)=>{group.visible=activeFocus==='all' && (showAllDirections||selectedDirection===key);});
@@ -317,19 +377,83 @@ function setupUI(){
   });
   showInfo('median');updateOpacity();
 }
-function finishHorse(gltf){
-  horse=gltf.scene;
-  horse.traverse(node=>{
+function finishHorse(gltf, label){
+  if(horse)scene.remove(horse);
+  horse=new THREE.Group();
+  const body=gltf.scene;
+  horse.add(body);
+  scene.add(horse);
+  body.traverse(node=>{
     if(node.isMesh){
       node.castShadow=false;
-      if(node.material){node.material.side=THREE.DoubleSide;node.material.needsUpdate=true;}
+      node.frustumCulled=true;
+      if(node.material){
+        const materials=Array.isArray(node.material)?node.material:[node.material];
+        materials.forEach(material=>{material.side=THREE.DoubleSide;material.needsUpdate=true;});
+      }
     }
   });
-  scene.add(horse);
-  modelBounds.setFromObject(horse);modelBounds.getCenter(modelCenter);
-  isReady=true;loading.hidden=true;
+  // glTF je standardně Y-up. Některé starší skeny ale používají Z-up.
+  let bounds=new THREE.Box3().setFromObject(body);
+  let sz=bounds.getSize(new THREE.Vector3());
+  if(sz.y>sz.z*1.13 && sz.z>sz.x*1.6){
+    body.rotation.x=-Math.PI/2;
+    body.updateWorldMatrix(true,true);
+    bounds.setFromObject(body);sz=bounds.getSize(new THREE.Vector3());
+  }
+  // Podélná osa modelu vždy ve směru X, hlava se očekává na -X.
+  if(sz.z>sz.x*1.15){
+    body.rotation.y=-Math.PI/2;
+    body.updateWorldMatrix(true,true);
+    bounds.setFromObject(body);sz=bounds.getSize(new THREE.Vector3());
+  }
+  const length=Math.max(sz.x,sz.z);
+  const scale=Math.min(3.45/Math.max(.001,length),2.5/Math.max(.001,sz.y));
+  body.scale.setScalar(scale);
+  body.updateWorldMatrix(true,true);
+  bounds.setFromObject(body);
+  const center=bounds.getCenter(new THREE.Vector3());
+  // Základ na podlaze; horizontální střed je přesně počátkem souřadnic.
+  body.position.sub(new THREE.Vector3(center.x,bounds.min.y,center.z));
+  body.updateWorldMatrix(true,true);
+  modelBounds.setFromObject(horse);
+  modelBounds.getCenter(modelCenter);
+  controls.minDistance=.5;
+  controls.maxDistance=Math.max(25,modelBounds.getSize(new THREE.Vector3()).length()*5);
+  placePlanesAroundModel();setDynamicFocus();createDirections();
+  isReady=true;loading.hidden=true;errorPanel.hidden=true;
+  modelStatus.textContent=label;
   moveCamera('all','iso',false);
   handleResize();
+}
+function loadRemoteModel(index=0){
+  if(index>=MODEL_SOURCES.length){
+    loading.hidden=true;errorPanel.hidden=false;
+    const p=errorPanel.querySelector('p');
+    p.textContent='Model se nepodařilo načíst ani ze vzdáleného zdroje. Stáhni GLB model podle README a nahraj jej na GitHub do models/realisticky-kun.glb, nebo níže vyber soubor GLB z počítače.';
+    modelStatus.textContent='Model se nepodařilo načíst';
+    return;
+  }
+  const source=MODEL_SOURCES[index];
+  modelStatus.textContent='Načítám: '+source.label;
+  const loader=new GLTFLoader();
+  loader.load(source.url, gltf=>finishHorse(gltf,source.label), undefined, error=>{
+    console.warn('Zdroj modelu '+source.url+' není dostupný:',error);
+    loadRemoteModel(index+1);
+  });
+}
+function loadCustomFile(file){
+  if(!file)return;
+  if(!/\.glb$/i.test(file.name)){alert('Vyber soubor modelu ve formátu .glb');return;}
+  const blobUrl=URL.createObjectURL(file);
+  loading.hidden=false;errorPanel.hidden=true;
+  loading.querySelector('strong').textContent='Načítám vlastní 3D model…';
+  new GLTFLoader().load(blobUrl,gltf=>{
+    URL.revokeObjectURL(blobUrl);
+    finishHorse(gltf,'Vlastní model · '+file.name);
+  },undefined,err=>{
+    URL.revokeObjectURL(blobUrl);showError(err);
+  });
 }
 function init(){
   if(!root)return;
@@ -367,14 +491,23 @@ function init(){
   const rim=new THREE.DirectionalLight(0xffffff,.8);rim.position.set(3,5,4);scene.add(rim);
   const grid=new THREE.GridHelper(8,20,0x456373,0x294756);
   grid.position.y=-.015;grid.material.transparent=true;grid.material.opacity=.3;scene.add(grid);
-  createPlanes();createDirections();setupUI();handleResize();
+  createPlanes();setupUI();handleResize();
   new ResizeObserver(handleResize).observe(root);
   window.addEventListener('resize',handleResize);
 
-  const loader=new GLTFLoader();
-  loader.load('./kun-detail.glb',finishHorse,undefined,err=>{
-    console.warn('Detailní model není dostupný. Používám záložní model.',err);
-    loader.load('./models/kun.glb',finishHorse,undefined,showError);
+  // Model umístěný v repozitáři má přednost a není závislý na externím serveru.
+  new GLTFLoader().load('./models/realisticky-kun.glb',
+    gltf=>finishHorse(gltf,'Lokální realistický model'),undefined,
+    ()=>loadRemoteModel(0));
+  customModelInput.addEventListener('change',()=>loadCustomFile(customModelInput.files?.[0]));
+  document.getElementById('flipHorse').addEventListener('click',()=>{
+    if(!horse || !isReady)return;
+    horse.rotation.y+=Math.PI;
+    horse.updateWorldMatrix(true,true);
+    modelBounds.setFromObject(horse);
+    modelBounds.getCenter(modelCenter);
+    placePlanesAroundModel();setDynamicFocus();createDirections();
+    moveCamera('all','iso',false);
   });
 
   function animate(time){
