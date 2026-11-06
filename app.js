@@ -91,6 +91,7 @@ const viewDirections = {
 
 let renderer,scene,camera,controls;
 let horse = null,modelBounds = new THREE.Box3();
+let modelVertexSamples=[]; // Reálné body viditelné geometrie; ne nepřesná obálka importovaného GLB.
 let modelCenter = new THREE.Vector3(-.23,1.20,0);
 let cameraTween=null, activeFocus='all', activeView='iso';
 let labelsVisible=true,selectedDirection=null,showAllDirections=false;
@@ -236,6 +237,95 @@ function chooseDirection(key){
   refreshDirections();
 }
 
+// Vlastní 3D model může obsahovat neviditelné pomocné objekty nebo nepřesné
+// hranice GLB. Změříme proto skutečné viditelné vrcholy, místo spoléhání
+// výhradně na Box3.setFromObject() v režimu approximate.
+function visibleVertexSamples(object, samplePerMesh=3000){
+  object.updateWorldMatrix(true,true);
+  const vertices=[];
+  const point=new THREE.Vector3();
+  object.traverse(node=>{
+    if(!node.isMesh || !node.visible || !node.geometry?.attributes?.position)return;
+    let ancestor=node.parent;
+    while(ancestor && ancestor!==object){if(!ancestor.visible)return;ancestor=ancestor.parent;}
+    const attr=node.geometry.attributes.position;
+    const stride=Math.max(1,Math.ceil(attr.count/samplePerMesh));
+    for(let i=0;i<attr.count;i+=stride){
+      point.fromBufferAttribute(attr,i);
+      if(node.isSkinnedMesh && node.skeleton)node.applyBoneTransform(i,point);
+      point.applyMatrix4(node.matrixWorld);
+      if(Number.isFinite(point.x)&&Number.isFinite(point.y)&&Number.isFinite(point.z))vertices.push(point.clone());
+    }
+  });
+  return vertices;
+}
+function measuredBounds(object){
+  const points=visibleVertexSamples(object);
+  if(points.length<16){
+    return new THREE.Box3().setFromObject(object,true);
+  }
+  // Ojedinělý chybový polygon několik metrů od koně nesmí posunout kameru.
+  const quantile=(sorted,q)=>sorted[Math.max(0,Math.min(sorted.length-1,Math.floor((sorted.length-1)*q)))];
+  const cut=points.length>300?.005:0;
+  const box=new THREE.Box3();
+  const ranges=['x','y','z'].map(axis=>{
+    const ordered=points.map(v=>v[axis]).sort((a,b)=>a-b);
+    return [quantile(ordered,cut),quantile(ordered,1-cut)];
+  });
+  box.min.set(ranges[0][0],ranges[1][0],ranges[2][0]);
+  box.max.set(ranges[0][1],ranges[1][1],ranges[2][1]);
+  const sz=box.getSize(new THREE.Vector3());
+  box.expandByVector(new THREE.Vector3(
+    Math.max(.001,sz.x*.035),Math.max(.001,sz.y*.035),Math.max(.001,sz.z*.035)
+  ));
+  return box;
+}
+// Druhá pojistka: ověřit skutečnou projekci 3D bodů do viewportu.
+// Pokud je model vizuálně vpravo/dole, srovná se *kamera i orbit target*.
+function checkAndCenterProjection(){
+  if(!camera || !controls || modelVertexSamples.length<12)return;
+  const points=modelVertexSamples;
+  const tmp=new THREE.Vector3();
+  for(let pass=0;pass<3;pass++){
+    camera.updateMatrixWorld(true);
+    const xs=[],ys=[];
+    for(const v of points){
+      tmp.copy(v).project(camera);
+      if(tmp.z<1&&tmp.z>-1&&Number.isFinite(tmp.x)&&Number.isFinite(tmp.y)){
+        xs.push(tmp.x);ys.push(tmp.y);
+      }
+    }
+    if(xs.length<12)return;
+    xs.sort((a,b)=>a-b);ys.sort((a,b)=>a-b);
+    const trim=xs.length>300?Math.floor(xs.length*.005):0;
+    const minX=xs[trim],maxX=xs[xs.length-1-trim];
+    const minY=ys[trim],maxY=ys[ys.length-1-trim];
+    const midX=(minX+maxX)*.5,midY=(minY+maxY)*.5;
+    const width=maxX-minX,height=maxY-minY;
+    const distance=camera.position.distanceTo(controls.target);
+    // Obsah má pokrývat max. 78 % šířky a 72 % výšky viewportu.
+    const sizeFactor=Math.max(1,width/1.56,height/1.44);
+    if(sizeFactor>1.002){
+      const dir=currentCameraDirection();
+      camera.position.copy(controls.target).addScaledVector(dir,distance*sizeFactor*1.06);
+      camera.updateMatrixWorld(true);
+    }
+    // Upravíme střed v *obrazové* rovině, nikoli odhadem podél os modelu.
+    if(Math.abs(midX)>.025||Math.abs(midY)>.025){
+      const d=camera.position.distanceTo(controls.target);
+      const tanV=Math.tan(THREE.MathUtils.degToRad(camera.fov/2));
+      const right=new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion);
+      const up=new THREE.Vector3(0,1,0).applyQuaternion(camera.quaternion);
+      const shift=right.multiplyScalar(midX*d*tanV*camera.aspect)
+        .add(up.multiplyScalar(midY*d*tanV));
+      camera.position.add(shift);
+      controls.target.add(shift);
+    }
+    controls.update();
+    if(sizeFactor<=1.002&&Math.abs(midX)<.025&&Math.abs(midY)<.025)break;
+  }
+}
+
 // Přesné optické zarámování: zohledňuje všechny rohy 3D modelu, hloubku,
 // perspektivu i skutečný poměr stran zobrazovacího pole. Žádné odhady podle šířky.
 function fullDistance(direction = defaultOrbit){
@@ -294,12 +384,11 @@ function currentCameraDirection(){
 let manuallyZoomed = false;
 function fitCurrentRotation(){
   if(!isReady || cameraTween || activeFocus!=='all' || manuallyZoomed)return;
-  controls.target.copy(modelCenter);
   const dir = currentCameraDirection();
   const required = fullDistance(dir);
-  const actual = camera.position.distanceTo(modelCenter);
+  const actual = camera.position.distanceTo(controls.target);
   if(actual < required){
-    camera.position.copy(modelCenter).addScaledVector(dir,required);
+    camera.position.copy(controls.target).addScaledVector(dir,required);
   }
 }
 function moveCamera(key=activeFocus,view=activeView,animated=true){
@@ -313,7 +402,7 @@ function moveCamera(key=activeFocus,view=activeView,animated=true){
   const position=target.clone().addScaledVector(dir,distance);
   controls.autoRotate=false;
   document.getElementById('autoRotate').checked=false;
-  if(!animated){controls.target.copy(target);camera.position.copy(position);cameraTween=null;controls.update();}
+  if(!animated){controls.target.copy(target);camera.position.copy(position);cameraTween=null;controls.update();if(key==='all')checkAndCenterProjection();}
   else cameraTween={started:performance.now(),duration:850,
     fromPos:camera.position.clone(),toPos:position,
     fromTarget:controls.target.clone(),toTarget:target};
@@ -344,6 +433,7 @@ function handleResize(){
     controls.target.copy(target);
     camera.position.copy(target).addScaledVector(direction,wanted);
     controls.update();
+    if(activeFocus==='all')checkAndCenterProjection();
   }
 }
 function showError(err){
@@ -377,55 +467,61 @@ function setupUI(){
   });
   showInfo('median');updateOpacity();
 }
-function finishHorse(gltf, label){
-  if(horse)scene.remove(horse);
+function finishHorse(gltf,label){
+  if(horse){scene.remove(horse);}
   horse=new THREE.Group();
   const body=gltf.scene;
+  // Některé generátory ukládají vlastní transformační matici kořenového uzlu.
+  // Bez automatic update pak body.position/scale vypadají změněně, ale neaplikují se.
+  if(!body.matrixAutoUpdate){
+    body.matrix.decompose(body.position,body.quaternion,body.scale);
+    body.matrixAutoUpdate=true;
+  }
+  body.updateMatrix();
   horse.add(body);
   scene.add(horse);
   body.traverse(node=>{
-    if(node.isMesh){
-      node.castShadow=false;
-      node.frustumCulled=true;
-      if(node.material){
-        const materials=Array.isArray(node.material)?node.material:[node.material];
-        materials.forEach(material=>{material.side=THREE.DoubleSide;material.needsUpdate=true;});
-      }
+    if(!node.isMesh)return;
+    node.castShadow=false;
+    node.frustumCulled=true;
+    if(node.material){
+      const mats=Array.isArray(node.material)?node.material:[node.material];
+      mats.forEach(mat=>{mat.side=THREE.DoubleSide;mat.needsUpdate=true;});
     }
   });
-  // glTF je standardně Y-up. Některé starší skeny ale používají Z-up.
-  let bounds=new THREE.Box3().setFromObject(body);
-  let sz=bounds.getSize(new THREE.Vector3());
-  if(sz.y>sz.z*1.13 && sz.z>sz.x*1.6){
+  let bounds=measuredBounds(horse);
+  let size=bounds.getSize(new THREE.Vector3());
+  if(size.y>size.z*1.13 && size.z>size.x*1.6){
     body.rotation.x=-Math.PI/2;
     body.updateWorldMatrix(true,true);
-    bounds.setFromObject(body);sz=bounds.getSize(new THREE.Vector3());
+    bounds=measuredBounds(horse);size=bounds.getSize(new THREE.Vector3());
   }
-  // Podélná osa modelu vždy ve směru X, hlava se očekává na -X.
-  if(sz.z>sz.x*1.15){
+  if(size.z>size.x*1.15){
     body.rotation.y=-Math.PI/2;
     body.updateWorldMatrix(true,true);
-    bounds.setFromObject(body);sz=bounds.getSize(new THREE.Vector3());
+    bounds=measuredBounds(horse);size=bounds.getSize(new THREE.Vector3());
   }
-  const length=Math.max(sz.x,sz.z);
-  const scale=Math.min(3.45/Math.max(.001,length),2.5/Math.max(.001,sz.y));
-  body.scale.setScalar(scale);
+  // Normalizace a vystředění podle *skutečných viditelných* vrcholů.
+  const length=Math.max(.001,size.x,size.z);
+  const scale=Math.min(3.45/length,2.5/Math.max(.001,size.y));
+  body.scale.multiplyScalar(scale); // zachovat původní velikostní transformaci z GLB
   body.updateWorldMatrix(true,true);
-  bounds.setFromObject(body);
+  bounds=measuredBounds(horse);
   const center=bounds.getCenter(new THREE.Vector3());
-  // Základ na podlaze; horizontální střed je přesně počátkem souřadnic.
   body.position.sub(new THREE.Vector3(center.x,bounds.min.y,center.z));
   body.updateWorldMatrix(true,true);
-  modelBounds.setFromObject(horse);
+  modelBounds.copy(measuredBounds(horse));
   modelBounds.getCenter(modelCenter);
+  modelVertexSamples=visibleVertexSamples(horse);
   controls.minDistance=.5;
-  controls.maxDistance=Math.max(25,modelBounds.getSize(new THREE.Vector3()).length()*5);
+  controls.maxDistance=Math.max(25,modelBounds.getSize(new THREE.Vector3()).length()*6);
   placePlanesAroundModel();setDynamicFocus();createDirections();
   isReady=true;loading.hidden=true;errorPanel.hidden=true;
   modelStatus.textContent=label;
   moveCamera('all','iso',false);
   handleResize();
 }
+
 function loadRemoteModel(index=0){
   if(index>=MODEL_SOURCES.length){
     loading.hidden=true;errorPanel.hidden=false;
@@ -504,8 +600,9 @@ function init(){
     if(!horse || !isReady)return;
     horse.rotation.y+=Math.PI;
     horse.updateWorldMatrix(true,true);
-    modelBounds.setFromObject(horse);
+    modelBounds.copy(measuredBounds(horse));
     modelBounds.getCenter(modelCenter);
+    modelVertexSamples=visibleVertexSamples(horse);
     placePlanesAroundModel();setDynamicFocus();createDirections();
     moveCamera('all','iso',false);
   });
@@ -517,7 +614,7 @@ function init(){
       const s=t*t*(3-2*t);
       camera.position.lerpVectors(cameraTween.fromPos,cameraTween.toPos,s);
       controls.target.lerpVectors(cameraTween.fromTarget,cameraTween.toTarget,s);
-      if(t>=1)cameraTween=null;
+      if(t>=1){cameraTween=null;if(activeFocus==='all')checkAndCenterProjection();}
     }
     controls.update();
     fitCurrentRotation();
