@@ -397,7 +397,11 @@ function handleResize(){
   const w=Math.max(1,root.clientWidth),h=Math.max(1,root.clientHeight);
   const changed=w!==lastCanvasWidth||h!==lastCanvasHeight;
   lastCanvasWidth=w;lastCanvasHeight=h;
+  // CSS pixel dimensions MUST match the camera viewport. Retina DPR may make
+  // the WebGL drawing buffer 2x bigger, but must NOT double its layout size.
   renderer.setSize(w,h,false);
+  renderer.domElement.style.width = `${w}px`;
+  renderer.domElement.style.height = `${h}px`;
   if(changed && isReady && activeFocus==='all' && !manuallyZoomed && !cameraTween){
     applyOrthoSpan(getFramingSpan('all',currentCameraDirection()));
     controls.target.copy(modelCenter);
@@ -533,6 +537,8 @@ function init(){
   renderer.toneMapping=THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure=1.38;
   root.appendChild(renderer.domElement);
+  renderer.domElement.style.position = "absolute";
+  renderer.domElement.style.inset = "0";
   controls=new OrbitControls(camera,renderer.domElement);
   controls.target.copy(modelCenter);
   camera.position.copy(modelCenter).addScaledVector(defaultOrbit,6.1);
