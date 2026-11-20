@@ -38,27 +38,27 @@ const MODEL_SOURCES = [
 
 const INFO = {
   median: {
-    name:'Mediánní rovina', color:'#ff6a95',
+    name:'Mediánní rovina', color:'#f6533c',
     description:'Prochází podélně středem těla a rozděluje koně na pravou a levou polovinu. Je to jedna konkrétní sagitální rovina – střední (midsagitální).',
     pills:['Pravá polovina','Levá polovina'], visible:true, geometry:[3.65,2.66],
     rotation:[0,0,0],position:[-.22,1.31,0],short:'MEDIÁNNÍ'
   },
   sagittal: {
-    name:'Sagitální rovina', color:'#ffd166',
+    name:'Sagitální rovina', color:'#c18a25',
     description:'Je rovnoběžná s mediánní rovinou. Pokud neprochází středem těla, dělí koně na nestejně velkou pravou a levou část.',
     pills:['Pravá část','Levá část'],visible:false, geometry:[3.55,2.48],
     rotation:[0,0,0],position:[-.22,1.31,.36],short:'SAGITÁLNÍ'
   },
   dorsal: {
-    name:'Dorzální rovina',color:'#48ddc4',
+    name:'Dorzální rovina',color:'#3157cf',
     description:'Podélná rovina přibližně rovnoběžná s hřbetem stojícího koně. Rozděluje trup na dorzální (hřbetní) a ventrální (břišní) část. Také se nazývá frontální.',
     pills:['Dorzálně – ke hřbetu','Ventrálně – k břichu'],visible:false, geometry:[3.6,1.65],
     rotation:[-Math.PI/2,0,0],position:[-.22,1.36,0],short:'DORZÁLNÍ'
   },
   transverse: {
-    name:'Transverzální rovina',color:'#899fff',
+    name:'Transverzální rovina',color:'#279d8b',
     description:'Příčná rovina kolmá na podélnou osu trupu. Odděluje kraniální část (směrem k hlavě) od kaudální části (směrem k ocasu).',
-    pills:['Kraniálně – k hlavě','Kaudálně – k ocasu'],visible:true,geometry:[1.70,2.64],
+    pills:['Kraniálně – k hlavě','Kaudálně – k ocasu'],visible:false,geometry:[1.70,2.64],
     rotation:[0,Math.PI/2,0],position:[-.10,1.32,0],short:'TRANSVERZÁLNÍ'
   }
 };
@@ -301,7 +301,7 @@ function chooseDirection(key){
   if(selectedDirection){
     const d=DIRECTIONS[selectedDirection];
     info.textContent=`${d.name}: ${d.description} Na hlavě se před očima používá rostrální; na končetinách navíc proximální, distální, palmární a plantární.`;
-  }else info.textContent='Na trupu se směry vztahují k hlavě, ocasu, hřbetu a břichu. Na hlavě a distálních částech končetin se používají také další odborné termíny.';
+  }else info.textContent='Kliknutím na směr zobrazíš jeho vysvětlení. Kraniální, kaudální, dorzální a ventrální lze navíc znázornit šipkou ve 3D.';
   refreshDirections();
 }
 
@@ -489,8 +489,28 @@ function setupUI(){
   }));
   document.getElementById('showAll').addEventListener('click',()=>setAllPlanes(true));
   document.getElementById('hideAll').addEventListener('click',()=>setAllPlanes(false));
-  document.querySelectorAll('.focus-btn').forEach(btn=>btn.addEventListener('click',()=>moveCamera(btn.dataset.focus,'side')));
-  document.querySelectorAll('.direction-btn').forEach(btn=>btn.addEventListener('click',()=>chooseDirection(btn.dataset.direction)));
+  document.querySelectorAll('.focus-btn').forEach(btn=>btn.addEventListener('click',()=>moveCamera(btn.dataset.focus,btn.dataset.focus==='all'?'iso':'side')));
+  document.querySelectorAll('.direction-btn').forEach(btn=>btn.addEventListener('click',()=>{
+    document.querySelectorAll('.glossary-btn').forEach(b=>{b.classList.remove('selected');b.setAttribute('aria-pressed','false');});
+    chooseDirection(btn.dataset.direction);
+  }));
+  const glossary={
+    proximal:'Proximální: směr na končetině blíže k trupu nebo k místu odstupu končetiny.',
+    distal:'Distální: směr na končetině dále od trupu, směrem ke kopytu.',
+    medial:'Mediální: směr k mediánní rovině, tedy ke střední rovině těla.',
+    lateral:'Laterální: směr od mediánní roviny, k boční straně těla.',
+    palmar:'Palmární: směr k zadní ploše hrudní (přední) končetiny distálně od karpu.',
+    plantar:'Plantární: směr k zadní ploše pánevní (zadní) končetiny distálně od hlezna.',
+    rostral:'Rostrální: směr na hlavě k nozdrám a nosu (rostrum).'
+  };
+  document.querySelectorAll('.glossary-btn').forEach(btn=>btn.addEventListener('click',()=>{
+    const active=!btn.classList.contains('selected');
+    document.querySelectorAll('.glossary-btn').forEach(b=>{b.classList.remove('selected');b.setAttribute('aria-pressed','false');});
+    selectedDirection=null;refreshDirections();
+    if(active){btn.classList.add('selected');btn.setAttribute('aria-pressed','true');}
+    document.getElementById('directionExplanation').textContent=active?glossary[btn.dataset.glossary]:
+      'Kliknutím na směr zobrazíš jeho vysvětlení. Kraniální, kaudální, dorzální a ventrální lze navíc znázornit šipkou ve 3D.';
+  }));
   document.getElementById('showDirections').addEventListener('change',e=>{
     showAllDirections=e.target.checked;refreshDirections();
   });
@@ -635,8 +655,8 @@ function init(){
   const key=new THREE.DirectionalLight(0xffe9d0,3.0);key.position.set(-3.5,6,4);scene.add(key);
   const fill=new THREE.DirectionalLight(0x9cbde5,1.55);fill.position.set(2,4,-5);scene.add(fill);
   const rim=new THREE.DirectionalLight(0xffffff,.8);rim.position.set(3,5,4);scene.add(rim);
-  const grid=new THREE.GridHelper(8,20,0x456373,0x294756);
-  grid.position.y=-.015;grid.material.transparent=true;grid.material.opacity=.3;scene.add(grid);
+  const grid=new THREE.GridHelper(8,20,0xc8bfb1,0xe3dacc);
+  grid.position.y=-.015;grid.material.transparent=true;grid.material.opacity=.22;scene.add(grid);
   createPlanes();setupUI();handleResize();
   new ResizeObserver(handleResize).observe(root);
   window.addEventListener('resize',handleResize);
